@@ -19,7 +19,7 @@ totalNumComp = 14
 
 #----------------------------------------------------------------------------------------
 
-def parameterMatter(hDD, SigDD, rhoDHalo = 0.008, sigmaDHalo = 1000.):
+def parameterMatter(hDD, SigDD, rhoDHalo = 0.015, sigmaDHalo = 2000.):
    """   sigmaH2 = 4.0; rhoH2 = 0.014;
    sigmaHI1 = 7.0; rhoHI1 = 0.015;
    sigmaHI2 = 9.0; rhoHI2 = 0.005;
