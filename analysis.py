@@ -22,8 +22,8 @@ import integrator as intt
 zRange = 2600
 zRange_Red = 260
 dzStep = 0.1
-indexDHalo = 14
-indexDDisk = 15 
+indexDHalo = 12
+indexDDisk = 13 
 
 def PoissonJeansSolve(hDD, SigDD, zRange):
    
@@ -146,21 +146,29 @@ def fetchWDist_gaia(filename, dw=0.05, gaus_approx=True, verbose=True, show_plot
 
    w, count, count_err = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(columnW, columnCount, columnCountErr), unpack=True)
 
-   for i, err in enumerate(count_err):
-      if np.isnan(err):
+   for i, w_err in enumerate(count_err):
+      if count[i] < 0.7*count[0]:
+         initial_guess_p0 = w[i]
+      if (w_err == 0.) or np.isnan(w_err):
          count_err[i] = 1.
+   
+   norm = np.trapz(count,x=w)
+   count = count/norm
+   count_err = count_err/norm
+   initial_guess_p0 = 1.
 
    gaus = lambda x, s: (2./(s*np.sqrt(2.*np.pi)) )*np.exp(-0.5*(x/s)**2)
    #mean_loc = 0.
    #gaus = lambda x, s: 2.*stats.norm.pdf(x, mean_loc, s)
-   sigma, sigma_err = opt.curve_fit( gaus, w, count,  sigma=count_err)
+
+   sigma, sigma_err = opt.curve_fit( gaus, w, count, sigma=count_err, p0=initial_guess_p0 )
    if verbose == True:
       print("Best-fit velocity sigma = ", sigma, " +/- ", sigma_err)
 
    wspacePos = np.linspace(0., np.amax(w), np.amax(w)/dw )
 
    if show_plot:
-      plotFunction(gaus(wspacePos, sigma), wspacePos, PlotLabel="w-distribution", AxesLabels=['w','Count'],normalized=False)
+      plotError( [gaus(w, sigma), count], [0, count_err], w, AxesLabels=['w','Count'], PlotLabel=['gaus fit','data'])
 
 
    #   print(np.trapz(wdist, wspacePos))
@@ -311,22 +319,17 @@ def plotError(funct, error, space, PlotLabel = "Plot", AxesLabels = ['x','y']):
 
    try:
       for i in range(len(funct)):
-         iplotName = 'plot_' + str(i)
-         if isinstance(PlotLabel, basestring):
-            plt.errorbar(space, funct[i], yerr=[error[i], 2*error[i]], label=PlotLabel, capthick=2)
-         else :
-            try:
-               plt.errorbar(space, funct[i], yerr=[error[i], 2*error[i]], label=str(PlotLabel[i]), capthick=2)
-            except TypeError:
-               plt.errorbar(space, funct[i], yerr=[error[i], 2*error[i]], label=str(PlotLabel), capthick=2)
-
+         plt.errorbar(space, funct[i], yerr=error[i], capthick=2, label=PlotLabel[i])
    except TypeError:
-      plt.errorbar(space, funct, yerr=[error, 2*error], label=str(PlotLabel), capthick=2)
+      plt.errorbar(space, funct, yerr=error[i], capthick=2)
+   except IndexError:
+      plt.errorbar(space, funct, yerr=error[i], capthick=2)      
    except ValueError:
       if len(funct) == len(space):
-         plt.plot(space, funct, label=PlotLabel)
+         plt.errorbar(space, funct)
 
-   plt.legend()
+   if len(PlotLabel) == len(funct):
+      plt.legend()
    plt.grid()
    plt.xlabel(AxesLabels[0])
    plt.ylabel(AxesLabels[1])

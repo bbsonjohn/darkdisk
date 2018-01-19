@@ -203,31 +203,25 @@ def find_bv_boundaries(starCategory, sp):
 
    return (bv_color_cut_upper, bv_color_cut_lower)
 #---------------------------------------------------------------------------------------------------------------------
-def generate_evfs(mj_tight, jk_tight, spt, zRange = 0.2, zNBin = 8, nintt_step = None, filename="default_evfs.txt" , save=True):
+def generate_evfs(mj_tight, jk_tight, spt, zspace, nintt_step = None, filename="default_evfs.txt" , save=True):
 
-   zWidth = zRange/zNBin
-   zBins = np.array([])
+   zWidth = np.mean( (np.roll(zspace,-1) - zspace)[:-1] )
    evfs = np.array([])
 
    tesf= gaia_tools.select.tgasEffectiveSelect(tsf,dmap3d=mwdust.Zero(),MJ=mj_tight,JK=jk_tight,maxd=max_dist)
    if nintt_step == None:
-      reduction_factor = 4. #my pc cannot handle the Bovy's optimized steps
-      nintt_step = (2501*('A' in spt) + 1001 * (True-('A' in spt)))/reduction_factor
+      nintt_step = (2501*('A' in spt) + 1001 * (True-('A' in spt)))
    
-   for i in range(-zNBin, zNBin):
-      i_step = i*zWidth
-
-      zmin = i_step-zWidth/2.
-      zmax = i_step+zWidth/2.
-      zBins = np.append(zBins, i_step)
+   for i, z_i in enumerate(zspace):
+      zmin = z_i - zWidth/2.
+      zmax = z_i + zWidth/2.
       
       evfs = np.append(evfs, tesf.volume(lambda x,y,z: cyl_vol_func(x,y,z,xymax=r_cyl_cut,zmin=zmin,zmax=zmax), ndists=nintt_step,xyz=True,relative=True)   )
 
    if save == True:
-      np.savetxt(filename, np.transpose( np.array([zBins, evfs]) ), delimiter=',',header="z_Bin_center, rel_effective_vol", fmt='%10.5f')
+      np.savetxt(filename, np.transpose( np.array([zspace, evfs]) ), delimiter=',',header="z_Bin_center, rel_effective_vol", fmt='%10.5f')
       
-   return (zBins, evfs)
-
+   return (zspace, evfs)
 #
 
 def load_evfs(filename="default_evfs.txt"):
@@ -244,7 +238,7 @@ def cut_indx_vol(tgas, rcut, zcut):
    r_cyl = np.sqrt(XYZ[:,0]**2.+XYZ[:,1]**2.)
    z_cyl= XYZ[:,2]
 
-   return  (r_cyl < r_cyl_cut)*(np.abs(z_cyl) < z_cyl_cut)
+   return  [(r_cyl < r_cyl_cut)*(np.abs(z_cyl) < z_cyl_cut)]
 
 #---------------------------------------------------------------------------------------------------------------------
 
@@ -256,8 +250,6 @@ def cut_flow(data, cuts):
 def cut_general(tgas, mj, jk):
    stat_indx = tsf.determine_statistical(tgas,twomass['j_mag'],twomass['k_mag'])
    tgas=tgas[stat_indx]
-   mj=mj[stat_indx]
-   jk=jk[stat_indx]
 #   good_plx_indx = (tgas['parallax']/tgas['parallax_error'] > (is_good_relplx(mj)))*(jk != 0.)*(tgas['parallax'] > min_plx)
 
    return [stat_indx]
@@ -323,10 +315,14 @@ def cut_midplane(tgas, b_cut = 5, r_cut = 0.15, z_cut = 0.20):
 
 min_plx= 0.45/0.2
 max_dist = 1./min_plx
+max_plx_error = 0.4
+tsf_jmin= 2.
+
 r_cyl_cut = 0.15
 z_cyl_cut = 0.22
 to_load_evfs = False
 dereddening = False
+
 load_dereddened_data = False
 
 #-------------------------------------------------initialization---------------------------------------------------------------
@@ -341,8 +337,8 @@ jk = twomass['j_mag']-twomass['k_mag']
 dm = -5.*np.log10(tgas['parallax'])+10.
 mj = twomass['j_mag']-dm
 print("executing preliminary cuts...")
-tsf= gaia_tools.select.tgasSelect( max_plxerr=0.4 )
-tsf._jmin= 2.
+tsf= gaia_tools.select.tgasSelect( max_plxerr=max_plx_error )
+tsf._jmin= tsf_jmin
 init_cuts = cut_general(tgas, mj, jk)
 
 tgas = cut_flow(tgas, init_cuts)
@@ -353,7 +349,7 @@ mj= cut_flow(mj, init_cuts)
 #bv= cut_flow(bv, init_cuts)
 #-------------------------------------------------initialization---------------------------------------------------------------
 #-------------------------------------------------volumn cut---------------------------------------------------------------
-vol_cut_indx = [cut_indx_vol(tgas, r_cyl_cut, z_cyl_cut)]
+vol_cut_indx = cut_indx_vol(tgas, r_cyl_cut, z_cyl_cut)
 jk_cyl = cut_flow(jk, vol_cut_indx)
 mj_cyl = cut_flow(mj, vol_cut_indx)
 #bv_cyl = cut_flow(bv, vol_cut_indx)
@@ -368,7 +364,7 @@ print("Vol-reduced count: ", len(tgas_cyl))
 jk_corr = np.zeros_like(jk_cyl)
 mj_corr = np.zeros_like(mj_cyl)
 
-if (dereddening == True) and (load_dereddened_data == False):
+if (dereddening) and (not load_dereddened_data):
    print("loading dust map...")
    #dust_combine = mwdust.Combined15()  #b-v filter
    dust_combine_J = mwdust.Combined15("2MASS J")
@@ -389,7 +385,7 @@ if (dereddening == True) and (load_dereddened_data == False):
    np.savetxt(dereddened_ouput_file, np.transpose( np.array([jk_corr, mj_corr]) ), delimiter=',',header="B-V, M_j")
    print("dereddening complete! File saved to: ", dereddened_ouput_file)
 
-if load_dereddened_data == True:
+if dereddening and load_dereddened_data:
    print("loading dereddened data")
    JKCOLUMN = 0; MJCOLUMN = 1
    file_deredden = "temp_ext.txt" 
@@ -407,22 +403,24 @@ binz_list = []
 for i, star_Cat in enumerate(star_Category):
    print('point running: ', i)
    print("Current Star Category: ", star_Cat)
-   zNBin = 8; zStepWidth = z_cyl_cut/zNBin; zRange = z_cyl_cut + zStepWidth; zNBin = zNBin+1
+   zNBin_evfs = 40
    #-----------------------------------------------------evfs----------------------------------------------------------
+  zStepWidth = 2*z_cyl_cut/(zNBin_evfs-1)
+
    file_evfs = "evfs_" + star_Cat + ".txt"
    
    zRangeList = []
    evfs_out = []
-   
+   zspace_evfs = np.linspace(-z_cyl_cut-zStepWidth/2., z_cyl_cut+zStepWidth/2., zNBin_evfs+1)
+
    if to_load_evfs:
-      print("Now loading evfs file: ", file_evfs)
+      print("Loaded evfs file: ", file_evfs)
       zRangeList, evfs_out = load_evfs(filename=file_evfs)
-   else:
-      print("Generating evfs...")   
+   else:  
       evfs_cuts = cut_evfs(star_Cat, sp, jk, mj, tgas)
       mj_evfs = cut_flow(mj, evfs_cuts)
       jk_evfs = cut_flow(jk, evfs_cuts)
-      zRangeList, evfs_out = generate_evfs(mj_evfs, jk_evfs, star_Cat, zRange = zRange, zNBin = zNBin, filename=file_evfs, save=True)
+      zRangeList , evfs_out = generate_evfs(mj_evfs, jk_evfs, star_Cat, zspace = zspace_evfs, filename=file_evfs, save=True)
 
    #evfs_list.append(evfs_out)
    #plt.plot( theRange, evfs_list[0], 'r',  theRange, evfs_list[1], 'b',  theRange, evfs_list[2], 'g' )
@@ -480,12 +478,15 @@ for i, star_Cat in enumerate(star_Category):
    bRad = bdeg*np.pi/180.
    ErrZcoord = np.abs(np.divide(1000.,plx**2)*np.sin(bRad)*e_plx)
 
-   if load_dereddened_data or dereddening:
+   if dereddening:
       data = np.transpose( np.array([hipID,ldeg,bdeg,plx,e_plx,z_pc,evfs_weight, jk_categorized,mj_categorized, \
       mj_corr_categorized,jk_corr_categorized, pml,pmb,err_pml,covpm,covpm,ErrZcoord]) )
    else:
       data = np.transpose( np.array([hipID,ldeg,bdeg,plx,e_plx,z_pc,evfs_weight, jk_categorized,mj_categorized, \
       mj_categorized,jk_categorized, pml,pmb,err_pml,covpm,covpm,ErrZcoord]) )
+
+   print(("evfs length: ", len(evfs_weight) ))
+   print(("star length: ", len(z_pc) ))
 
    save_file_density = star_Cat + '_stars.txt'
    line_header = "# HpID, l (deg), b (deg), plx (mas), err_plx (mas), z_coord (pc), evfs_w, (B-V), AbsMag, AbsMag Corrected, \
