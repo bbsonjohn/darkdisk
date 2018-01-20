@@ -22,8 +22,8 @@ import integrator as intt
 zRange = 2600
 zRange_Red = 260
 dzStep = 0.1
-indexDHalo = 14
-indexDDisk = 15 
+indexDHalo = 12
+indexDDisk = 13 
 
 def PoissonJeansSolve(hDD, SigDD, zRange):
    
@@ -139,36 +139,63 @@ def fetchWDist(filename, dw=0.01, mean_adj=False, show_plot=False):
 
 #----------------------------------------------------------------------------------------------------------------
 
-def fetchWDist_gaia(filename, dw=0.05, gaus_approx=True, verbose=True, show_plot=False):
+def fetchWDist_gaia(filename, dw=0.05, gaus_approx=False, verbose=True, show_plot=False):
    columnW = 0
    columnCount = 1
    columnCountErr = 2
 
    w, count, count_err = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(columnW, columnCount, columnCountErr), unpack=True)
-
-   for i, err in enumerate(count_err):
-      if np.isnan(err):
-         count_err[i] = 1.
-
-   gaus = lambda x, s: (2./(s*np.sqrt(2.*np.pi)) )*np.exp(-0.5*(x/s)**2)
-   #mean_loc = 0.
-   #gaus = lambda x, s: 2.*stats.norm.pdf(x, mean_loc, s)
-   sigma, sigma_err = opt.curve_fit( gaus, w, count,  sigma=count_err)
-   if verbose == True:
-      print("Best-fit velocity sigma = ", sigma, " +/- ", sigma_err)
+   
+   norm = np.trapz(count,x=w)
+   count = count/norm
+   count_err = count_err/norm
 
    wspacePos = np.linspace(0., np.amax(w), np.amax(w)/dw )
+   gaus = lambda x, s: (2./(s*np.sqrt(2.*np.pi)) )*np.exp(-0.5*(x/s)**2)
+   fit_cutoff = len(w);
 
-   if show_plot:
-      plotFunction(gaus(wspacePos, sigma), wspacePos, PlotLabel="w-distribution", AxesLabels=['w','Count'],normalized=False)
+   if gaus_approx:
+       
+      initial_guess_p0 = 1.
+      for i, w_err in enumerate(count_err):
+         if (count[i-1] > 0.7*count[0]) and (count[i] < 0.7*count[0]):
+            initial_guess_p0 = w[i]
+         if (w_err == 0.) or np.isnan(w_err):
+            fit_cutoff = i
+            break
+      #mean_loc = 0.
+      #gaus = lambda x, s: 2.*stats.norm.pdf(x, mean_loc, s)
 
+      sigma, sigma_err = opt.curve_fit( gaus, w[:fit_cutoff], count[:fit_cutoff], sigma=count_err[:fit_cutoff], p0=initial_guess_p0 )
+      if verbose == True:
+         print("Best-fit velocity sigma = ", sigma, " +/- ", sigma_err)
+
+      if show_plot:
+         plotError( [gaus(w, sigma), count], [0, count_err], w, AxesLabels=['w','Count'], PlotLabel=['gaus fit','data'])
+         
+      return (wspacePos, gaus(wspacePos, sigma))
 
    #   print(np.trapz(wdist, wspacePos))
    #   plt.hist(wAbs, bins=40, normed=1)
-   #   plt.plot(wspacePos, wdist)
+   #   plt.plot(wspacePos, wdist)     
 
-   return (wspacePos, gaus(wspacePos, sigma))
+   fw_out = interp.interp1d(w, count, kind='cubic')
+   fw_out_array = np.array([])
 
+   for i, wsteps in enumerate(wspacePos):
+      if wsteps < w[0]:
+          fw_out_array = np.append(fw_out_array, fw_out(w[0]))
+      elif wsteps > w[len(w)-1]:
+          fw_out_array = np.append(fw_out_array, 0.)
+      else :
+          fw_out_array = np.append(fw_out_array, fw_out(wsteps))   
+
+   fw_out_array = fw_out_array/np.trapz(fw_out_array, x = wspacePos)
+
+   if show_plot:
+      plotError( [fw_out(w), count], [0, count_err], w, AxesLabels=['w','Count'], PlotLabel=['gaus fit','data'])
+
+   return (wspacePos, fw_out_array)
 
 
 #-------------------------------------------------------------------------------------------------
@@ -276,62 +303,8 @@ def fetchZPredict(phi_in, zspace_phi, zspace_out, wdist, wspace, show_plot=False
    return rho_out(zspace_out)
 
 #-------------------------------------------------------------------------------------------------
-
-def plotFunction(funct, space, PlotLabel = "Plot", AxesLabels = ['x','y'], normalized = True):
-
-   try:
-      for i in range(len(funct)):
-         if normalized :
-            funct[i][:] = funct[i][:]/funct[i][int(np.ceil(len(funct[i])/2.))]
-            iplotName = 'plot_' + str(i)
-         if isinstance(PlotLabel, basestring):
-            plt.plot(space, funct[i], label=PlotLabel)
-         else :
-            try:
-               plt.plot(space, funct[i], label=str(PlotLabel[i]) )
-            except TypeError:
-               plt.plot(space, funct[i], label=str(PlotLabel) )
-   except IndexError:
-      plt.plot(space, funct, label=PlotLabel)
-   except TypeError:
-      plt.plot(space, funct, label=PlotLabel)
-   except ValueError:
-      if len(funct) == len(space):
-         plt.plot(space, funct, label=PlotLabel)
-
-   plt.grid()
-   plt.xlabel(AxesLabels[0])
-   plt.ylabel(AxesLabels[1])
-   plt.show()
-   return
-
-#-------------------------------------------------------------------------------------------------
-
-def plotError(funct, error, space, PlotLabel = "Plot", AxesLabels = ['x','y']):
-
-   try:
-      for i in range(len(funct)):
-         iplotName = 'plot_' + str(i)
-         if isinstance(PlotLabel, basestring):
-            plt.errorbar(space, funct[i], yerr=[error[i], 2*error[i]], label=PlotLabel, capthick=2)
-         else :
-            try:
-               plt.errorbar(space, funct[i], yerr=[error[i], 2*error[i]], label=str(PlotLabel[i]), capthick=2)
-            except TypeError:
-               plt.errorbar(space, funct[i], yerr=[error[i], 2*error[i]], label=str(PlotLabel), capthick=2)
-
-   except TypeError:
-      plt.errorbar(space, funct, yerr=[error, 2*error], label=str(PlotLabel), capthick=2)
-   except ValueError:
-      if len(funct) == len(space):
-         plt.plot(space, funct, label=PlotLabel)
-
-   plt.legend()
-   plt.grid()
-   plt.xlabel(AxesLabels[0])
-   plt.ylabel(AxesLabels[1])
-   plt.show()
-   return
+def fetch_Z_systematics(filename, zspace):
+    return 0
 
 #-------------------------------------------------------------------------------------------------
 def likelihoodDensity(zspace, prediction, data, delta_pred, delta_data, starUpperZ = float('nan'), starLowerZ = float('nan'), plot_dist = False):
@@ -350,7 +323,7 @@ def likelihoodDensity(zspace, prediction, data, delta_pred, delta_data, starUppe
    for i in range(len(zspace)):
       j = len(zspace)-i-1
       if zspace[j] < starUpperZ:
-         integrateEnd = j 
+         integrateEnd = j+1 
          break
 
    zspace=zspace[integrateStart:integrateEnd]
@@ -424,6 +397,59 @@ def logLikelihood(binning, data, predict, sigma):
    llh = np.log( np.prod(likelihood) )
    return llh
 
+#-------------------------------------------------------------------------------------------------
+
+def plotFunction(funct, space, PlotLabel = "Plot", AxesLabels = ['x','y'], normalized = True):
+
+   try:
+      for i in range(len(funct)):
+         if normalized :
+            funct[i][:] = funct[i][:]/funct[i][int(np.ceil(len(funct[i])/2.))]
+            iplotName = 'plot_' + str(i)
+         if isinstance(PlotLabel, basestring):
+            plt.plot(space, funct[i], label=PlotLabel)
+         else :
+            try:
+               plt.plot(space, funct[i], label=str(PlotLabel[i]) )
+            except TypeError:
+               plt.plot(space, funct[i], label=str(PlotLabel) )
+   except IndexError:
+      plt.plot(space, funct, label=PlotLabel)
+   except TypeError:
+      plt.plot(space, funct, label=PlotLabel)
+   except ValueError:
+      if len(funct) == len(space):
+         plt.plot(space, funct, label=PlotLabel)
+
+   plt.grid()
+   plt.xlabel(AxesLabels[0])
+   plt.ylabel(AxesLabels[1])
+   plt.show()
+   return
+
+#-------------------------------------------------------------------------------------------------
+
+def plotError(funct, error, space, PlotLabel = "Plot", AxesLabels = ['x','y']):
+
+   try:
+      for i in range(len(funct)):
+         plt.errorbar(space, funct[i], yerr=error[i], capthick=2, label=PlotLabel[i])
+         plt.ylim( ymax=(np.amax(funct)+0.1*(np.amax(funct)-np.amin(funct))), ymin=(np.amin(funct)-0.1*(np.amax(funct)-np.amin(funct))) );
+   except TypeError:
+      plt.errorbar(space, funct, yerr=error[i], capthick=2)
+   except IndexError:
+      plt.errorbar(space, funct, yerr=error[i], capthick=2)      
+   except ValueError:
+      if len(funct) == len(space):
+         plt.errorbar(space, funct)
+
+   if len(PlotLabel) == len(funct):
+      plt.legend()
+   plt.grid()
+   plt.xlabel(AxesLabels[0])
+   plt.ylabel(AxesLabels[1])
+   plt.show()
+   return
 
 
 
