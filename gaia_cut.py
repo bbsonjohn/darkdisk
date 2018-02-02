@@ -405,7 +405,7 @@ for i, star_Cat in enumerate(star_Category):
    print("Current Star Category: ", star_Cat)
    zNBin_evfs = 40
    #-----------------------------------------------------evfs----------------------------------------------------------
-  zStepWidth = 2*z_cyl_cut/(zNBin_evfs-1)
+   zStepWidth = 2*z_cyl_cut/(zNBin_evfs-1)
 
    file_evfs = "evfs_" + star_Cat + ".txt"
    

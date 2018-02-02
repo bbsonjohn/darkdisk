@@ -23,7 +23,23 @@ zRange = 2600
 zRange_Red = 260
 dzStep = 0.1
 indexDHalo = 12
-indexDDisk = 13 
+indexDDisk = 13
+
+wfile_columnW = 0
+wfile_columnCount = 1
+wfile_columnCountErr = 2
+
+zfile_columnl = 1
+zfile_columnb = 2
+zfile_columnPlx = 3
+zfile_columnErrPlx = 4
+zfile_columnZ = 5
+zfile_columnEVFS = 6
+zfile_columnPml = 11
+zfile_columnPmb = 12
+zfile_columnPmlErr = 13
+zfile_columnPmbErr = 14
+zfile_columnZErr = 16
 
 def PoissonJeansSolve(hDD, SigDD, zRange):
    
@@ -34,9 +50,7 @@ def PoissonJeansSolve(hDD, SigDD, zRange):
    xspaceFull = np.linspace(-zRange, zRange, 2*zRange/dzStep-1)
    DMConstraintZ = 2500
 
-   matterParam = intt.parameterMatter(hDD,SigDD)
-   sigma = matterParam[0]
-   rho = matterParam[1]
+   sigma, rho  = intt.parameterMatter(hDD,SigDD)
 
    DefaultRhoDHalo = rho[indexDHalo]
 
@@ -75,18 +89,38 @@ def PoissonJeansSolve(hDD, SigDD, zRange):
    sol_interp = interp.interp1d(xspaceFull, sol_full, kind='cubic')
 
    return sol_interp
+#--------------------------------------------------------------------------------
+
+def PoissonJeansSolve_gaia(hDD, SigDD, zRange, use_default_density = False, sigma_in = None, rho_in = None):
+   
+   maxIteration = 100
+   convergence = 1e-4
+   loopCounter = 0
+   xspace = np.linspace(0, zRange, zRange/dzStep)
+   xspaceFull = np.linspace(-zRange, zRange, 2*zRange/dzStep-1)
+   
+   sigma, rho  = intt.parameterMatter(hDD, SigDD, use_default_density = use_default_density, sigma_in = sigma_in, rho_in = rho_in)
+   #DefaultRhoDHalo = rho[indexDHalo]
+
+   sol = intt.PoissonJeansIntegrator(hDD, SigDD, xspace, use_default_density=use_default_density, sigma = sigma_in, rho = rho_in)
+   
+   solu = sol[:,0]
+   sol_full = np.flip(solu[(-len(solu)+1):],0)
+   sol_full = np.append(sol_full,solu)
+   sol_interp = interp.interp1d(xspaceFull, sol_full, kind='cubic')
+
+   return sol_interp
 
 #--------------------------------------------------------------------------------
 
-def diskParamReturn(solu, hDD, SigDD, iComp = indexDDisk):
+def diskParamReturn(solu, hDD, SigDD, iComp = indexDDisk, use_default_density = False, sigma_in = None, rho_in = None):
    hScaleDefine = (np.cosh(0.5))**(-2)
-   matterParam = intt.parameterMatter(hDD,SigDD)
-   sigma = matterParam[0]
-   rho = matterParam[1]
    dzStep_int = 0.01
    
+   sigma, rho  = intt.parameterMatter(hDD, SigDD, use_default_density = use_default_density, sigma_in = sigma_in, rho_in = rho_in)
+   
    if SigDD == 0.:
-       return [hDD, SigDD]   
+       return (hDD, SigDD)
 
    xspace = np.linspace(0, zRange, zRange/dzStep)
    sol = solu(xspace)
@@ -104,19 +138,15 @@ def diskParamReturn(solu, hDD, SigDD, iComp = indexDDisk):
          break         
       if i == len(density_norm)-1 :
          print ("Disk height not found!")
-   return [diskHeight, surfDensity]   
+   return (diskHeight, surfDensity)   
 
 #----------------------------------------------------------------------------------------------------------------
 
-def fetchWDist(filename, dw=0.01, mean_adj=False, show_plot=False):
-   columnW = 0
-   columnWErr = 1
+def fetchWDist_kernel(filename, dw=0.01, show_plot=False):
 
-   w, werr = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(columnW, columnWErr), unpack=True)
-   if mean_adj:
-      w = w - np.mean(w)
+   w, werr = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(wfile_columnW, wfile_columnCountErr), unpack=True)
+   
    wAbs = np.absolute(w)   
-
 
    wspacePos = np.linspace(0., np.amax(wAbs), np.amax(wAbs)/dw )
    wspaceNeg = np.linspace(-np.amax(wAbs), 0., np.amax(wAbs)/dw )
@@ -131,20 +161,87 @@ def fetchWDist(filename, dw=0.01, mean_adj=False, show_plot=False):
    if show_plot:
       plotFunction(wdist, wspacePos, PlotLabel="w-distribution", AxesLabels=['w','Count'],normalized=False)
 
-#   print(np.trapz(wdist, wspacePos))
-#   plt.hist(wAbs, bins=40, normed=1)
-#   plt.plot(wspacePos, wdist)
-
    return (wspacePos, wdist)
 
 #----------------------------------------------------------------------------------------------------------------
 
-def fetchWDist_gaia(filename, dw=0.05, gaus_approx=False, verbose=True, show_plot=False):
-   columnW = 0
-   columnCount = 1
-   columnCountErr = 2
+def fetchWData(filename, wSun = 7.01, b_cut_deg = 5., show_plot = False, vr_from_file = False, to_save_file = False, out_filename = None, verbose=True):
 
-   w, count, count_err = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(columnW, columnCount, columnCountErr), unpack=True)
+   vKappa = 4.74047 #( km s^-1 mas (mas yr)^-1 )
+   uSun = 11.1
+   vSun = 12.24
+   wNBin = 20
+   w_Range = 40.
+   delw = w_Range/wNBin
+   
+   ldeg, bdeg, plx, pml, pmb, evfs_w, zerr = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(zfile_columnl, zfile_columnb, zfile_columnPlx, zfile_columnPml, zfile_columnPmb, zfile_columnEVFS, zfile_columnZErr), unpack=True)
+    
+   midplane_cut_indx = ( np.abs(bdeg) <= b_cut_deg )
+   ldeg = ldeg[midplane_cut_indx]
+   bdeg = bdeg[midplane_cut_indx]
+   plx = plx[midplane_cut_indx]
+   pml = pml[midplane_cut_indx]
+   pmb = pmb[midplane_cut_indx]
+   evfs_w = evfs_w[midplane_cut_indx]
+   zerr = zerr[midplane_cut_indx]
+
+   lRad = ldeg*np.pi/180.
+   bRad = bdeg*np.pi/180.
+
+   VRMean = float('nan')
+   if vr_from_file:
+      VRMean = 0.
+   else:
+      VRMean = -uSun*np.cos(lRad)*np.cos(bRad) - vSun*np.sin(lRad)*np.cos(bRad) - wSun*np.sin(bRad)
+      
+   VZ =  wSun + vKappa*pmb*np.cos(bRad)/plx + VRMean*np.sin(bRad)
+
+   w_space = np.linspace(0., w_Range, wNBin+1)
+   count, _, _ = plt.hist(np.abs(VZ), w_space, weights=evfs_w)
+   count_err, _ , _ = plt.hist(np.abs(VZ), w_space)
+   plt.clf()
+   
+   for i, w_c_err in enumerate(count_err):
+      if w_c_err == 0:
+         continue
+      else :
+         count_err[i] = count[i]/np.sqrt(w_c_err)
+
+
+   w = (w_space + delw/2.)[:-1]
+
+   if to_save_file:
+      line_header = "# w bins (km/s), count, count_err"
+      np.savetxt(out_filename , np.transpose( np.array([w , count, count_err]) ), delimiter=',',header=line_header, fmt='%10.5f')
+      print("Mid-plane velocity saved to: " + out_filename )
+
+   if verbose:
+      print("Star count after mid-plane cut: " + str(np.sum(midplane_cut_indx)) )
+      print("Star count after mid-plane cut (evfs-normalized): " + str(np.sum(count)) )
+      print("mean star velocity: " + str(np.mean(VZ)) + " km/s" )
+      print("mean star velocity (evfs-normalized): " + str(np.sum(VZ*evfs_w)/(np.sum(evfs_w)) )  + " km/s")  
+
+   if show_plot:
+      w_space_full = np.linspace(-w_Range, w_Range, 2*wNBin+1)
+      w_bins_full = (w_space_full + delw/2.)[:-1]
+      count_bins, _, _ = plt.hist(VZ, w_space_full, weights=evfs_w)
+      plt.clf()
+      plt.title("w-space distribution"); plt.xlabel("w"); plt.ylabel("count");
+      plt.errorbar(w_bins_full, count_bins, yerr=np.sqrt(count_bins), xerr=delw/2., capthick=2, ls='none')
+
+   return (w, count, count_err)
+
+#----------------------------------------------------------------------------------------------------------------
+def fetchWDist_gaia(w_in=None, count_in=None, count_err_in=None, filename=None, dw=0.05, gaus_approx=False, verbose=True, from_file = False, show_plot=False):
+
+   w, count, count_err = (None, None, None)
+
+   if from_file:
+      w, count, count_err = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(wfile_columnW, wfile_columnCount, wfile_columnCountErr), unpack=True)
+   else:
+      w = w_in
+      count = count_in
+      count_err = count_err_in
    
    norm = np.trapz(count,x=w)
    count = count/norm
@@ -163,21 +260,19 @@ def fetchWDist_gaia(filename, dw=0.05, gaus_approx=False, verbose=True, show_plo
          if (w_err == 0.) or np.isnan(w_err):
             fit_cutoff = i
             break
-      #mean_loc = 0.
-      #gaus = lambda x, s: 2.*stats.norm.pdf(x, mean_loc, s)
+
 
       sigma, sigma_err = opt.curve_fit( gaus, w[:fit_cutoff], count[:fit_cutoff], sigma=count_err[:fit_cutoff], p0=initial_guess_p0 )
+      chi_sq = np.sum( (gaus(w,sigma)-count)**2./count_err**2 )/(len(count)-2)
       if verbose == True:
-         print("Best-fit velocity sigma = ", sigma, " +/- ", sigma_err)
+         print("Best-fit velocity sigma = " + str(sigma) + " +/- " + str(sigma_err) )
+         print("chi-squared/ndf = " + str(chi_sq) + ", with n dof = " + str(len(count)-2) )
 
       if show_plot:
          plotError( [gaus(w, sigma), count], [0, count_err], w, AxesLabels=['w','Count'], PlotLabel=['gaus fit','data'])
          
       return (wspacePos, gaus(wspacePos, sigma))
 
-   #   print(np.trapz(wdist, wspacePos))
-   #   plt.hist(wAbs, bins=40, normed=1)
-   #   plt.plot(wspacePos, wdist)     
 
    fw_out = interp.interp1d(w, count, kind='cubic')
    fw_out_array = np.array([])
@@ -190,49 +285,81 @@ def fetchWDist_gaia(filename, dw=0.05, gaus_approx=False, verbose=True, show_plo
       else :
           fw_out_array = np.append(fw_out_array, fw_out(wsteps))   
 
-   fw_out_array = fw_out_array/np.trapz(fw_out_array, x = wspacePos)
+   fw_norm = np.trapz(fw_out_array, x = wspacePos)
+   fw_out_array = fw_out_array/fw_norm
 
    if show_plot:
-      plotError( [fw_out(w), count], [0, count_err], w, AxesLabels=['w','Count'], PlotLabel=['gaus fit','data'])
+      delw = np.mean( (np.roll(w,-1) - w)[:-1] )
+      plt.errorbar(w, count/fw_norm, yerr=count_err/fw_norm, xerr=delw/2., capthick=2, label='data', ls='none')
+      plt.plot(wspacePos, fw_out_array, label='interpolation')
+      plt.title("f(|w|)"); plt.xlabel("w"); plt.ylabel("count"); plt.legend();
+      plt.show()
 
    return (wspacePos, fw_out_array)
 
-
 #-------------------------------------------------------------------------------------------------
 
-def fetchZDist(filename, zspace):
+def fetchZDist(filename, zspace, zSun = 0., use_evfs=True, show_plot=False):
 
-   columnZ = 5
-   columnZErr = 16
+   z, zerr, evfs_w = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(zfile_columnZ, zfile_columnZErr, zfile_columnEVFS), unpack=True)   
+   densityWidth = np.sqrt(np.mean(zerr))**2#. +(len(zspace) * 3./4.)**(-2./5.))
+   zspacing = np.mean( (np.roll(zspace,-1)-zspace)[:-1] )
+   z_evfs = np.zeros_like(zspace)
+   zspacing_division = 100.
 
-   z, zerr = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(columnZ, columnZErr), unpack=True)   
-   densityWidth = np.sqrt((np.mean(zerr))**2+(len(zspace) * 3./4.)**(-2./5.))
+   z = z - zSun
 
-   zkernel = stats.gaussian_kde(z, densityWidth)
-   zdist = zkernel.evaluate(zspace)
-#   np.trapz(zdist,zspace)
+   if use_evfs == False:
+      evfs_w = np.ones_like(z)
+
+   print("mean z position: " + str(np.sum(z*evfs_w)/np.sum(evfs_w)) )      
+
+   zspacing_fine = zspacing/zspacing_division
+   z_range = np.amax(zspace) - np.amin(zspace)
+   zspace_fine = np.linspace(np.amin(zspace)-2*zspacing, np.amax(zspace)+2*zspacing, z_range/zspacing_fine+4*zspacing_division+1)
+
+
+   gaus = lambda x, s: (1./(s*np.sqrt(2.*np.pi)) )*np.exp(-0.5*(x/s)**2)
+
+   dist_kernels = np.zeros_like(zspace_fine)
+   for i, z_coord in enumerate(zspace_fine):
+      z_relevant_indx = ( np.abs(z_coord-z) < 3.*zerr )
+      z_relevant = z[z_relevant_indx]
+      evfs_relevant = evfs_w[z_relevant_indx]
+      zerr_relevant = zerr[z_relevant_indx]
+      dist_kernels[i] = np.sum( evfs_relevant*gaus( (z_relevant - z_coord), zerr_relevant ) )
+
+   zdist = np.zeros_like(zspace)
+   zdist_2 = np.zeros_like(zspace)
+   for i, z_coord in enumerate(zspace):
+      z_in_bin = (zspace_fine > (z_coord - zspacing/2.))*(zspace_fine <= (z_coord + zspacing/2.))
+      zdist[i] = np.sum(dist_kernels[z_in_bin])*zspacing_fine
+      
+      z_in_bin_2 = (z > (z_coord - zspacing/2.))*(z <= (z_coord + zspacing/2.))
+      zdist_2[i] = np.sum( evfs_w[z_in_bin_2] )
+
+   if show_plot:
+      plotFunction([zdist, zdist_2], zspace, PlotLabel=["with kernel", "without kernel"] , AxesLabels=['z','Counts'], normalized=False, logScale = True)
    
    return zdist
 #--------------------------------------------------------------------------------------------------
 
-def fetchZDistHist(filename, zspace, use_evfs=True, show_plot=False):
-
-   columnZ = 5
-   columnEVFS = 6
-   columnZErr = 16
+def fetchZDistHist(filename, zspace, zSun = 0., use_evfs=True, show_plot=False):
 
    zdist = np.zeros_like(zspace)
-   zspacing = stats.mode(np.roll(zspace,-1)-zspace)[0]
-   z, evfs_w, zerr = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(columnZ, columnEVFS, columnZErr), unpack=True)
+   zspacing = np.mean( (np.roll(zspace,-1)-zspace)[:-1] )
+   z, evfs_w = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(zfile_columnZ, zfile_columnEVFS), unpack=True)
    #z_in_bin = np.array(np.zeros_like(), dtype=bool)
+
+   z = z - zSun
 
    for i, z_coord in enumerate(zspace):
       z_in_bin = (z > (z_coord - zspacing/2.))*(z <= (z_coord + zspacing/2.))
       if use_evfs:
-         if np.sum( z_in_bin[z_in_bin] ) == 0:
+         if np.sum( z_in_bin ) == 0:
             zdist[i] = 0
          else:
-            zdist[i] = np.sum( z_in_bin[z_in_bin]*(evfs_w[z_in_bin]) )
+            zdist[i] = np.sum( evfs_w[z_in_bin] )
             #print((np.sum( z_in_bin[z_in_bin]/(evfs_w[z_in_bin]) ), np.sum( z_in_bin[z_in_bin])))
       else:
          zdist[i] = np.sum( z_in_bin )
@@ -245,9 +372,8 @@ def fetchZDistHist(filename, zspace, use_evfs=True, show_plot=False):
 #--------------------------------------------------------------------------------------------------
 
 def plotWDist(filename, wdist, dw, bins=40):
-   columnW = 0
 
-   w = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(columnW), unpack=True)   
+   w = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(wfile_columnW), unpack=True)   
    w = w - np.mean(w)
    w = np.absolute(w)   
 
@@ -271,7 +397,7 @@ def fetchZPredict(phi_in, zspace_phi, zspace_out, wdist, wspace, show_plot=False
    phi = phiConversion*phi_in(zspace_phi)
    xLimit = []
    dw = np.mean( (np.roll(wspace, -1) - wspace)[:-1] )
-
+   
    xLimit = np.append(xLimit, 1)
    for i in range(1,len(zspace_phi)):
       j = np.ceil(np.sqrt( 2.*phi[i] )/dw)      
@@ -303,8 +429,26 @@ def fetchZPredict(phi_in, zspace_phi, zspace_out, wdist, wspace, show_plot=False
    return rho_out(zspace_out)
 
 #-------------------------------------------------------------------------------------------------
-def fetch_Z_systematics(filename, zspace):
-    return 0
+def fetch_z_systematics(filename, zspace, zdist):
+    
+   zspacing = stats.mode(np.roll(zspace,-1)-zspace)[0]
+   z, zerr, evfs_w = np.loadtxt(filename, delimiter= ",", skiprows=1, usecols=(zfile_columnZ, zfile_columnZErr, zfile_columnEVFS), unpack=True)
+   #z_in_bin = np.array(np.zeros_like(), dtype=bool)
+
+   samplings = 1000
+   rand_matrix = np.random.normal(0., 1., samplings*len(zerr))
+
+   z_bin_err = np.zeros_like(zspace)
+   for j in range(samplings):
+      for i, z_coord in enumerate(zspace):
+         low_indx= j*len(zerr) ; up_indx = (j+1)*len(zerr);
+         gaus_err = rand_matrix[low_indx:up_indx]
+         z_in_bin = (z+gaus_err*zerr > (z_coord - zspacing/2.))*(z+gaus_err*zerr <= (z_coord + zspacing/2.))
+         z_bin_err[i] = z_bin_err[i]+(zdist[i] - np.sum( evfs_w[z_in_bin] ) )**2
+         
+   z_bin_err = np.sqrt(z_bin_err)/samplings
+
+   return z_bin_err
 
 #-------------------------------------------------------------------------------------------------
 def likelihoodDensity(zspace, prediction, data, delta_pred, delta_data, starUpperZ = float('nan'), starLowerZ = float('nan'), plot_dist = False):
@@ -332,41 +476,24 @@ def likelihoodDensity(zspace, prediction, data, delta_pred, delta_data, starUppe
    delta_data=delta_data[integrateStart:integrateEnd]
    delta_pred=delta_pred[integrateStart:integrateEnd]
 
-   zspace_rebin = np.empty([len(zspace)/rebinning])
-   predict_rebin = np.empty([len(zspace)/rebinning])
-   data_rebin = np.empty([len(zspace)/rebinning])
-   delta_data_rebin = np.empty([len(zspace)/rebinning])
-   delta_pred_rebin = np.empty([len(zspace)/rebinning])
+   variance = ((delta_pred)**2/(prediction**2+epsilon) + (delta_data)**2)/(data**2+epsilon) + epsilon
 
-   """for i in range(len(zspace)/rebinning):
-      zspace_rebin[i] = zspace[int(rebinning*(i+0.5))] 
-      predict_rebin[i] = np.sum( [ prediction[rebinning*i+j] for j in range(rebinning)] )
-      data_rebin[i] = np.sum( [ data[rebinning*i+j] for j in range(rebinning)] )
-      delta_data_rebin[i] = np.sqrt( np.sum( [ delta_data[rebinning*i+j]**2 for j in range(rebinning)] )  )
-      delta_pred_rebin[i] = np.sqrt( np.sum( [ delta_pred[rebinning*i+j]**2 for j in range(rebinning)] )  )
-
-      print((str("data: "),prediction[i],data[i]))
-      print((delta_pred[i],delta_data[i]))"""
-
-   variance = ((delta_pred)**2 + (delta_data)**2)/(data**2+epsilon) + epsilon
-
-   #likelihood_array =  np.log( stats.norm.pdf(np.log(data), np.log(prediction), 2.*variance) )  
-   likelihood_array =  np.log( 1./(np.sqrt(2*np.pi*variance))*np.exp(-(np.log(data) - np.log(prediction))**2)/(2.*variance) )
-   #print(likelihood_array)
-   valid_indx = ( np.isfinite(likelihood_array) )
-   #print(likelihood_array[valid_indx])
-   #print((data[valid_indx],prediction[valid_indx],variance[valid_indx]))
-   likelihood = np.sum( likelihood_array[valid_indx]  )
-   #print(valid_indx)
-   #print((str("the likelihood is: ") , likelihood))
+   non_zero_index = (data > 0.)*(prediction > 0.)
+   variance = variance[non_zero_index]
+   data = data[non_zero_index]
+   prediction = prediction[non_zero_index]
+   
+   likelihood_array =   1./(np.sqrt(2*np.pi*variance))*np.exp(-((np.log(data) - np.log(prediction))**2)/(2.*variance) )
+   
+   valid_indx = 1 - (np.isfinite(1./likelihood_array) )
+   if np.sum(valid_indx) > 0.:
+       return -np.inf
+   
+   likelihood = -1.*np.sum( np.log(likelihood_array) ) 
+   
    
    if plot_dist == True:
       plotError([prediction, data], [delta_pred, delta_data], zspace, PlotLabel = ["pred", "data"])
-      #plotFunction([predict_chisq, data_chisq], zspace, PlotLabel = ["pred", "data"])
-
-#   for i in range(len(differ)):
-#      print(differ[i], uncertainty[i])
-#   return (zspace, likelihood)
    return likelihood
 #-------------------------------------------------------------------------------------------------
 def bootstrap(funct, space, star_size, times = 1000):
@@ -399,7 +526,7 @@ def logLikelihood(binning, data, predict, sigma):
 
 #-------------------------------------------------------------------------------------------------
 
-def plotFunction(funct, space, PlotLabel = "Plot", AxesLabels = ['x','y'], normalized = True):
+def plotFunction(funct, space, PlotLabel = "Plot", AxesLabels = ['x','y'], normalized = True, logScale = False):
 
    try:
       for i in range(len(funct)):
@@ -421,6 +548,10 @@ def plotFunction(funct, space, PlotLabel = "Plot", AxesLabels = ['x','y'], norma
       if len(funct) == len(space):
          plt.plot(space, funct, label=PlotLabel)
 
+   if len(PlotLabel) == len(funct):
+      plt.legend()
+   if logScale:
+      plt.yscale('log')
    plt.grid()
    plt.xlabel(AxesLabels[0])
    plt.ylabel(AxesLabels[1])
@@ -434,7 +565,7 @@ def plotError(funct, error, space, PlotLabel = "Plot", AxesLabels = ['x','y']):
    try:
       for i in range(len(funct)):
          plt.errorbar(space, funct[i], yerr=error[i], capthick=2, label=PlotLabel[i])
-         plt.ylim( ymax=(np.amax(funct)+0.1*(np.amax(funct)-np.amin(funct))), ymin=(np.amin(funct)-0.1*(np.amax(funct)-np.amin(funct))) );
+         plt.ylim( ymax=(np.amax(funct)+0.1*(np.amax(funct)-np.amin(np.append(funct,0)))), ymin=0. );
    except TypeError:
       plt.errorbar(space, funct, yerr=error[i], capthick=2)
    except IndexError:
