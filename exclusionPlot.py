@@ -53,24 +53,19 @@ starDensity_norm = starDensity[int(np.ceil(len(starDensity)/2.))]
 starDensity = starDensity/starDensity_norm
 starDensity_Delta = SDDensity/starDensity_norm
 
-#print('Stars read:', nStars)
-#print(starDensity[int(np.ceil(len(starDensity)/2.))])
-print((str("ndf is: "), ndf))
-
 
 interpz = []
 interpy = []
 interpx = []
 interpxy = []
 
-zero_solu = an.PoissonJeansSolve(0., 0., zRangeLarge)
+zero_solu = an.PoissonJeansSolve_gaia(0., 0., zRangeLarge)
 zero_predict = an.fetchZPredict(zero_solu, zspaceMed, zspaceFull, wfunct, wspace, show_plot=False)
 zero_SDPredict = [0. for k in range(len(starDensity_Delta))]
 zero_predict_norm = zero_predict[int(np.ceil(len(zero_predict)/2.))]
 zero_predict = zero_predict/zero_predict_norm
 zero_predict_Delta = zero_SDPredict/zero_predict_norm
 zero_likelihood = an.likelihoodDensity(zspaceFull, zero_predict, starDensity, zero_predict_Delta, starDensity_Delta, l_range_p, l_range_n, plot_dist = False)
-zero_likelihood = zero_likelihood/ndf
 
 HD_step = 5
 SgmD_step = 1
@@ -84,7 +79,7 @@ for nHD in range(5,305,HD_step):
 
 for nHD in tqdm(range(5,305,HD_step)):
    for nSgmD in tqdm(range(1,61,SgmD_step)):
-      solu = an.PoissonJeansSolve(nHD, nSgmD, zRangeLarge)
+      solu = an.PoissonJeansSolve_gaia(nHD, nSgmD, zRangeLarge)
       param = an.diskParamReturn(solu, nHD, nSgmD)
       predict = an.fetchZPredict(solu, zspaceMed, zspaceFull, wfunct, wspace, show_plot=False)
       #SDPredict = an.bootstrap(predict,zspaceFull, nStars, nBootstrapSample)
