@@ -99,9 +99,6 @@ def PoissonJeansSolve_gaia(hDD, SigDD, zRange, use_default_density = False, sigm
    xspace = np.linspace(0, zRange, zRange/dzStep)
    xspaceFull = np.linspace(-zRange, zRange, 2*zRange/dzStep-1)
    
-   sigma, rho  = intt.parameterMatter(hDD, SigDD, use_default_density = use_default_density, sigma_in = sigma_in, rho_in = rho_in)
-   #DefaultRhoDHalo = rho[indexDHalo]
-
    sol = intt.PoissonJeansIntegrator(hDD, SigDD, xspace, use_default_density=use_default_density, sigma = sigma_in, rho = rho_in)
    
    solu = sol[:,0]
@@ -485,9 +482,9 @@ def likelihoodDensity(zspace, prediction, data, delta_pred, delta_data, starUppe
    
    likelihood_array =   1./(np.sqrt(2*np.pi*variance))*np.exp(-((np.log(data) - np.log(prediction))**2)/(2.*variance) )
    
-   valid_indx = 1 - (np.isfinite(1./likelihood_array) )
+   valid_indx = 1 - (likelihood_array > 0. )
    if np.sum(valid_indx) > 0.:
-       return -np.inf
+       return np.inf
    
    likelihood = -1.*np.sum( np.log(likelihood_array) ) 
    
@@ -516,13 +513,6 @@ def bootstrap(funct, space, star_size, times = 1000):
    return np.sqrt(variance/times)
 
 
-
-#-------------------------------------------------------------------------------------------------
-def logLikelihood(binning, data, predict, sigma):
-
-   likelihood = 1./( sigma*np.sqrt(2*np.pi))*np.exp(-0.5*(np.log(data)-np.log(predict))**2/(2*sigma**2))
-   llh = np.log( np.prod(likelihood) )
-   return llh
 
 #-------------------------------------------------------------------------------------------------
 

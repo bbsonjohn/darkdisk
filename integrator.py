@@ -17,6 +17,7 @@ gnewt = 4.516e-30
 vConversion = 3.0857e13
 totalNumComp = 14
 indexDHalo = 12
+indexDDisk = 13
 rhoDefault = 0.020
 
 #----------------------------------------------------------------------------------------
@@ -126,6 +127,39 @@ def PoissonJeansIntegrator(hDD, SigDD, xspace, rhoDH=None, use_default_density=T
 
 #----------------------------------------------------------------------------------------
 
+def functs_alt(y, x, rho0, sigma):
+   # phi'= phip
+   # phip' = Sum[Rho[i] Exp[-phi[x]/(Sqrt[2] Sigma[[i]])^2], {k, 1, nComp}]
+
+   phi, phip = y
+   source = np.array([])
+   for i in range(0, len(rho0), 1):
+      if i == indexDDisk:
+         h = sigma[i]/(vConversion*np.sqrt(8*np.pi*gnewt*rho0[i]))
+         darkdisk = rho0[i]*(np.cosh(0.5*x/h))**(-2)
+         source = np.append(source, darkdisk)
+      else:
+         source = np.append(source, densBachall(phi, i, rho0, sigma) )
+         
+   dy = [phip, np.sum(source)]
+
+   return dy
+
+#----------------------------------------------------------------------------------------
+
+def PoissonJeansIntegrator_alt(hDD, SigDD, xspace, rhoDH=None, use_default_density=True, sigma = None, rho = None):
+
+   sigma_vec, rho_vec = parameterMatter(hDD, SigDD, use_default_density=use_default_density, sigma_in = sigma, rho_in = rho)
+
+   initialPhi = 0.0; initialPhiPrime = 0.0;
+   
+   initCond = [initialPhi , initialPhiPrime]
+
+   sol = intt.odeint(functs_alt, initCond, xspace, args=(rho_vec, sigma_vec))
+
+   return sol
+
+#----------------------------------------------------------------------------------------
 def plotPotential(hDD, SigDD, zRange, dzStep=0.01):
    xspace = np.linspace(0, zRange, zRange/dzStep)
    solution = PoissonJeansIntegrator(hDD, SigDD, xspace)

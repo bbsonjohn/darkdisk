@@ -93,7 +93,7 @@ def fetchZDist_fast(z, zerr, evfs_w_in, zspace, zSun = 0., use_evfs = True, verb
 def diskParamLlhReturn(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
     
    sigmaDHalo = float('nan')
-   sunW = 6.395
+   systematic_z = 0.03
    
    star_sig, sunZ, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4,\
    sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
@@ -101,6 +101,10 @@ def diskParamLlhReturn(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
 
    sigma = [sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, sigmaDHalo]
    rho = [rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5, rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs, rhoDHalo]
+
+   prior_param = np.array([star_sig, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, \
+   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
+   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs])
 
    delw = 0.05
    delz = 20.
@@ -129,7 +133,7 @@ def diskParamLlhReturn(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
       if sd == 0:
          SDDensity[i] = 1.
       else:
-         SDDensity[i] = starDensity[i]/sd
+         SDDensity[i] = starDensity[i]/sd + systematic_z*starDensity[i]
    starDensity_norm = starDensity[int(np.ceil(len(starDensity)/2.-1))]
    #parallax_error = an.fetch_z_systematics(starFile, zspaceFull, starDensity)
    #parallax_error = 0.
@@ -148,9 +152,6 @@ def diskParamLlhReturn(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
    likelihood = an.likelihoodDensity(zspaceFull, predict, starDensity, predict_Delta, starDensity_Delta, l_range_p, l_range_n, plot_dist = False)
    if not np.isfinite(likelihood):
       return (hdd_return, Sigdd_return, np.inf)
-   prior_param = np.array([star_sig, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, \
-   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
-   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs])
 
    
    prior = lambda x, s: (1./(s*np.sqrt(2.*np.pi)) )*np.exp(-0.5*((x/s)**2))
@@ -161,9 +162,9 @@ def diskParamLlhReturn(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
 
 #-------------------------------------------------------------------------------------------------------
 def loglikelihood(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
-
+   nsigma_range = 3.
+   systematic_z = 0.03
    sigmaDHalo = float('nan')
-   sunW = 6.395
 
    star_sig, sunZ, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4,\
    sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
@@ -173,6 +174,16 @@ def loglikelihood(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
    rho = [rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5, rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs, rhoDHalo]
    star_sigma = star_sig
 
+   prior_param = np.array([star_sig, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, \
+   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
+   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs])
+
+   if np.sum(sigma <= 0.)+np.sum(rho <= 0.)+(star_sigma <= 0.)+(rhoDHalo <= 0.) > 0.:
+      return np.inf
+   indx_cut_param = (prior_param > (mean_param - nsigma_range*err_param) )*(prior_param < (mean_param + nsigma_range*err_param) )
+   
+   if np.sum( 1 - indx_cut_param ) > 0.:
+      return np.inf
 
    delw = 0.05
    delz = 20.
@@ -201,7 +212,7 @@ def loglikelihood(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
       if sd == 0:
          SDDensity[i] = 1.
       else:
-         SDDensity[i] = starDensity[i]/sd
+         SDDensity[i] = starDensity[i]/sd + systematic_z*starDensity[i]
    starDensity_norm = starDensity[int(np.ceil(len(starDensity)/2.-1))]
    #parallax_error = an.fetch_z_systematics(starFile, zspaceFull, starDensity)
    #parallax_error = 0.
@@ -219,37 +230,45 @@ def loglikelihood(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
    likelihood = an.likelihoodDensity(zspaceFull, predict, starDensity, predict_Delta, starDensity_Delta, l_range_p, l_range_n, plot_dist = False)
    if not np.isfinite(likelihood):
       return np.inf
-   prior_param = np.array([star_sig, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, \
-   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
-   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs])
-
    
-   prior = lambda x, s: (1./(s*np.sqrt(2.*np.pi)) )*np.exp(-0.5*((x/s)**2))
-
-   likelihood = likelihood - np.sum(np.log( prior( (prior_param - mean_param) , err_param) ))
+   #prior = lambda x, s: (1./(s*np.sqrt(2*np.pi)))*np.exp(-0.5*((x/s)**2))
+   prior = lambda x, s: (1./(s*np.sqrt(2*np.pi)))*np.exp(-0.5*((x/s)**2))
+   
+   prior_prod = prior( (prior_param - mean_param) , err_param)
+   
+   valid_indx = 1 - (prior_prod > 0.)
+   if np.sum(valid_indx) > 0.:
+       return np.inf
+   likelihood = likelihood - np.sum(np.log( prior_prod ))
    
    return likelihood
 
 
 
 #-------------------------------------------------------------------------------------------------------
-def loglikelihood_test(param, fixed_param, zdata):
-
+def loglikelihood_emcee(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
+   systematic_z = 0.03
+   nsigma_range = 3.
    sigmaDHalo = float('nan')
-   sunW = 6.395
 
-   h_DD, sig_DD, star_sig = param
-   sunZ, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, \
-   sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5, rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs = fixed_param
+   star_sig, sunZ, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4,\
+   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
+   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs = param
 
-   sigma = sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, sigmaDHalo
-   rho = rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5, rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs, rhoDHalo
+   sigma = [sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, sigmaDHalo]
+   rho = [rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5, rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs, rhoDHalo]
+   star_sigma = star_sig
 
-   star_Cat = 'G'
+   prior_param = np.array([star_sig, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, \
+   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
+   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs])
 
-   gridFile = '/Users/john/Desktop/john_code/DarkDisk/grid'+star_Cat+'StarCorr.txt'
-   raw_gridFile = '/Users/john/Desktop/john_code/DarkDisk/grid'+star_Cat+'StarCorr_raw.txt'
-   starFile = '/Users/john/Desktop/john_code/DarkDisk/'+star_Cat+'_stars.txt'
+   if np.sum(sigma <= 0.)+np.sum(rho <= 0.)+(star_sigma <= 0.)+(rhoDHalo <= 0.) > 0.:
+      return -np.inf
+   indx_cut_param = (prior_param > (mean_param - nsigma_range*err_param) )*(prior_param < (mean_param + nsigma_range*err_param) )
+   if np.sum( 1-indx_cut_param ) > 0.:
+      return -np.inf
+
 
    delw = 0.05
    delz = 20.
@@ -267,10 +286,7 @@ def loglikelihood_test(param, fixed_param, zdata):
    zspaceLarge  = np.linspace(-zRangeLarge, zRangeLarge, 2*int(zRangeLarge/delz)-1)
    wspace = np.linspace(0., w_Range, int(w_Range/delw)+1 )
 
-   rhoDHsigma = float('nan')
-   sunW = 6.395
 
-   star_sigma = star_sig
    wfunct = (2./(np.sqrt(2.*np.pi*star_sigma**2)) )*np.exp(-0.5*(wspace/star_sigma)**2)
    
    z, zerr, evfs_w = zdata
@@ -281,7 +297,7 @@ def loglikelihood_test(param, fixed_param, zdata):
       if sd == 0:
          SDDensity[i] = 1.
       else:
-         SDDensity[i] = starDensity[i]/sd
+         SDDensity[i] = starDensity[i]/sd + systematic_z*starDensity[i]
    starDensity_norm = starDensity[int(np.ceil(len(starDensity)/2.-1))]
    #parallax_error = an.fetch_z_systematics(starFile, zspaceFull, starDensity)
    #parallax_error = 0.
@@ -295,8 +311,22 @@ def loglikelihood_test(param, fixed_param, zdata):
    predict_norm = predict[int(np.ceil(len(predict)/2.-1))]
    predict = predict/predict_norm
    predict_Delta = SDPredict/predict_norm
+   
    likelihood = an.likelihoodDensity(zspaceFull, predict, starDensity, predict_Delta, starDensity_Delta, l_range_p, l_range_n, plot_dist = False)
-   return likelihood
+   if not np.isfinite(likelihood):
+      return -np.inf
+
+   
+   prior = lambda x, s: (1./(s*np.sqrt(2*np.pi)))*np.exp(-0.5*((x/s)**2))
+   
+   prior_prod = prior( (prior_param - mean_param) , err_param)
+   
+   valid_indx = 1 - (prior_prod > 0.)
+   if np.sum(valid_indx) > 0.:
+       return -np.inf
+   likelihood = likelihood - np.sum(np.log( prior_prod ))
+   
+   return (-1.*likelihood)
 
 
 
