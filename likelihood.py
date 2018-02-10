@@ -246,87 +246,9 @@ def loglikelihood(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
 
 
 #-------------------------------------------------------------------------------------------------------
-def loglikelihood_emcee(param, h_DD, sig_DD, zdata, mean_param=0., err_param=0.):
-   systematic_z = 0.03
-   nsigma_range = 3.
-   sigmaDHalo = float('nan')
-
-   star_sig, sunZ, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4,\
-   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
-   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs = param
-
-   sigma = [sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, sigmaDHalo]
-   rho = [rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5, rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs, rhoDHalo]
-   star_sigma = star_sig
-
-   prior_param = np.array([star_sig, rhoDHalo, sigmaH2, sigmaHI1, sigmaHI2, sigmaWGas, sigmaGiants, sigmaMV2p5, sigma3MV4, \
-   sigma4MV5, sigma5MV8, sigmaMV8, sigmaWDwarfs, sigmaBDwarfs, rhoH2, rhoHI1, rhoHI2, rhoWGas, rhoGiants, rhoMV2p5,\
-   rho3MV4, rho4MV5, rho5MV8, rhoMV8, rhoWDwarfs, rhoBDwarfs])
-
-   if np.sum(sigma <= 0.)+np.sum(rho <= 0.)+(star_sigma <= 0.)+(rhoDHalo <= 0.) > 0.:
-      return -np.inf
-   indx_cut_param = (prior_param > (mean_param - nsigma_range*err_param) )*(prior_param < (mean_param + nsigma_range*err_param) )
-   if np.sum( 1-indx_cut_param ) > 0.:
-      return -np.inf
-
-
-   delw = 0.05
-   delz = 20.
-   w_Range = 40
-   zRangeLarge = 2600.
-   zRangeMed = 300.
-   zRangeRed = 260.
-   nBootstrapSample = 20
-   l_range_p = 200.
-   l_range_n = -200.
-
-   zspace = np.linspace(0., zRangeRed, int(zRangeRed/delz))
-   zspaceMed = np.linspace(0., zRangeMed, int(zRangeMed/delz))
-   zspaceFull  = np.linspace(-zRangeRed, zRangeRed, 2*int(zRangeRed/delz)-1)
-   zspaceLarge  = np.linspace(-zRangeLarge, zRangeLarge, 2*int(zRangeLarge/delz)-1)
-   wspace = np.linspace(0., w_Range, int(w_Range/delw)+1 )
-
-
-   wfunct = (2./(np.sqrt(2.*np.pi*star_sigma**2)) )*np.exp(-0.5*(wspace/star_sigma)**2)
-   
-   z, zerr, evfs_w = zdata
-
-   starDensity = fetchZDist_fast(z, zerr, evfs_w, zspaceFull, zSun = sunZ)
-   SDDensity = np.sqrt(fetchZDist_fast(z, zerr, evfs_w, zspaceFull, zSun = sunZ, use_evfs = False))
-   for i, sd in enumerate(SDDensity):
-      if sd == 0:
-         SDDensity[i] = 1.
-      else:
-         SDDensity[i] = starDensity[i]/sd + systematic_z*starDensity[i]
-   starDensity_norm = starDensity[int(np.ceil(len(starDensity)/2.-1))]
-   #parallax_error = an.fetch_z_systematics(starFile, zspaceFull, starDensity)
-   #parallax_error = 0.
-   starDensity = starDensity/starDensity_norm
-   starDensity_Delta = SDDensity/starDensity_norm
-
-   solu = an.PoissonJeansSolve_gaia(h_DD, sig_DD, zRangeLarge, use_default_density = False, sigma_in = sigma, rho_in = rho)
-
-   predict = an.fetchZPredict(solu, zspaceMed, zspaceFull, wfunct, wspace, show_plot=False)
-   SDPredict = [0. for k in range(len(starDensity_Delta))]
-   predict_norm = predict[int(np.ceil(len(predict)/2.-1))]
-   predict = predict/predict_norm
-   predict_Delta = SDPredict/predict_norm
-   
-   likelihood = an.likelihoodDensity(zspaceFull, predict, starDensity, predict_Delta, starDensity_Delta, l_range_p, l_range_n, plot_dist = False)
-   if not np.isfinite(likelihood):
-      return -np.inf
-
-   
-   prior = lambda x, s: (1./(s*np.sqrt(2*np.pi)))*np.exp(-0.5*((x/s)**2))
-   
-   prior_prod = prior( (prior_param - mean_param) , err_param)
-   
-   valid_indx = 1 - (prior_prod > 0.)
-   if np.sum(valid_indx) > 0.:
-       return -np.inf
-   likelihood = likelihood - np.sum(np.log( prior_prod ))
-   
-   return (-1.*likelihood)
+def loglikelihood_emcee(param, h_DD, sig_DD, zdata, mean_param=, err_param):
+   llh = -1.*loglikelihood(param, h_DD, sig_DD, zdata, mean_param=mean_param, err_param=err_param)
+   return llh
 
 
 
