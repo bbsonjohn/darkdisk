@@ -208,7 +208,7 @@ def generate_evfs(mj_tight, jk_tight, spt, zspace, nintt_step = None, filename="
    zWidth = np.mean( (np.roll(zspace,-1) - zspace)[:-1] )
    evfs = np.array([])
 
-   tesf= gaia_tools.select.tgasEffectiveSelect(tsf,dmap3d=mwdust.Zero(),MJ=mj_tight,JK=jk_tight,maxd=max_dist)
+   tesf= gaia_tools.select.gaiaEffectiveSelect(tsf,dmap3d=mwdust.Zero(),MJ=mj_tight,JK=jk_tight,maxd=max_dist)
    if nintt_step == None:
       nintt_step = (2501*('A' in spt) + 1001 * (True-('A' in spt)))
    
@@ -232,9 +232,9 @@ def load_evfs(filename="default_evfs.txt"):
 
 #---------------------------------------------------------------------------------------------------------------------
 
-def cut_indx_vol(tgas, rcut, zcut):
+def cut_indx_vol(gaia, rcut, zcut):
 
-   XYZ= bovy_coords.lbd_to_XYZ(tgas['l'],tgas['b'],1./tgas['parallax'],degree=True)
+   XYZ= bovy_coords.lbd_to_XYZ(gaia['l'],gaia['b'],1./gaia['parallax'],degree=True)
    r_cyl = np.sqrt(XYZ[:,0]**2.+XYZ[:,1]**2.)
    z_cyl= XYZ[:,2]
 
@@ -247,20 +247,20 @@ def cut_flow(data, cuts):
       data = data[cut_indx]
    return data
 
-def cut_general(tgas, mj, jk):
-   stat_indx = tsf.determine_statistical(tgas,twomass['j_mag'],twomass['k_mag'])
-   tgas=tgas[stat_indx]
-#   good_plx_indx = (tgas['parallax']/tgas['parallax_error'] > (is_good_relplx(mj)))*(jk != 0.)*(tgas['parallax'] > min_plx)
+def cut_general(gaia, mj, jk):
+   stat_indx = tsf.determine_statistical(gaia,twomass['j_mag'],twomass['k_mag'])
+   gaia=gaia[stat_indx]
+#   good_plx_indx = (gaia['parallax']/gaia['parallax_error'] > (is_good_relplx(mj)))*(jk != 0.)*(gaia['parallax'] > min_plx)
 
    return [stat_indx]
    
 
-def cut_evfs(starCat, sp, jk, mj, tgas):
+def cut_evfs(starCat, sp, jk, mj, gaia):
    tightness = True
    cut_indx = []
 
    jk_color_cut_upper, jk_color_cut_lower = find_jk_boundaries(starCat, sp)
-   color_cut =  (jk > jk_color_cut_upper)*(jk < jk_color_cut_lower)*(tgas['parallax']/tgas['parallax_error'] > (is_good_relplx(mj)))*(jk != 0.)
+   color_cut =  (jk > jk_color_cut_upper)*(jk < jk_color_cut_lower)*(gaia['parallax']/gaia['parallax_error'] > (is_good_relplx(mj)))*(jk != 0.)
 
    jk_tight = jk[color_cut]
    mj_tight = mj[color_cut]
@@ -272,43 +272,43 @@ def cut_evfs(starCat, sp, jk, mj, tgas):
 
    return [color_cut, good_mj_cut_tight]
 
-def cut_stars(starCat, sp, jk, mj, tgas): # category cut and volume cut
+def cut_stars(starCat, sp, jk, mj, gaia): # category cut and volume cut
    tightness = False
    cut_indx = []
 
    jk_color_cut_upper, jk_color_cut_lower = find_jk_boundaries(starCat, sp)
-   color_cut =  (jk > jk_color_cut_upper)*(jk < jk_color_cut_lower)*(tgas['parallax']/tgas['parallax_error'] > (is_good_relplx(mj)))*(jk != 0.)
+   color_cut =  (jk > jk_color_cut_upper)*(jk < jk_color_cut_lower)*(gaia['parallax']/gaia['parallax_error'] > (is_good_relplx(mj)))*(jk != 0.)
 
    jk = jk[color_cut]
    mj = mj[color_cut]
-   tgas = tgas[color_cut]
+   gaia = gaia[color_cut]
 
    good_mj_cut = ( mj > main_sequence_cut_r(jk,tight=tightness))*(mj < main_sequence_cut_r(jk,low=True,tight=tightness))
 
    return [color_cut, good_mj_cut]
 
-def cut_stars_bv(starCat, sp, jk, bv, mj, tgas): # category cut and volume cut
+def cut_stars_bv(starCat, sp, jk, bv, mj, gaia): # category cut and volume cut
    tightness = False
    cut_indx = []
 
    bv_color_cut_upper, bv_color_cut_lower = find_bv_boundaries(starCat, sp)
-   color_cut =  (bv > bv_color_cut_upper)*(bv < bv_color_cut_lower)*(tgas['parallax']/tgas['parallax_error'] > (is_good_relplx(mj)))*(bv != 0.)
+   color_cut =  (bv > bv_color_cut_upper)*(bv < bv_color_cut_lower)*(gaia['parallax']/gaia['parallax_error'] > (is_good_relplx(mj)))*(bv != 0.)
 
    bv = bv[color_cut]
    jk = jk[color_cut]
    mj = mj[color_cut]
-   tgas = tgas[color_cut]
+   gaia = gaia[color_cut]
 
    good_mj_cut = ( mj > main_sequence_cut_r(jk,tight=tightness))*(mj < main_sequence_cut_r(jk,low=True,tight=tightness))
 
    return [color_cut, good_mj_cut]
 
 
-def cut_midplane(tgas, b_cut = 5, r_cut = 0.15, z_cut = 0.20):
+def cut_midplane(gaia, b_cut = 5, r_cut = 0.15, z_cut = 0.20):
 
-   vol_cut_indx = cut_indx_vol(tgas, r_cut, z_cut)
-   tgas = tgas[vol_cut_indx]
-   midplane_indx = (np.abs(tgas['b']) <= b_cut)
+   vol_cut_indx = cut_indx_vol(gaia, r_cut, z_cut)
+   gaia = gaia[vol_cut_indx]
+   midplane_indx = (np.abs(gaia['b']) <= b_cut)
 
    return [vol_cut_indx, midplane_indx]
 #-------------------------------------------------------------------------------------------------------
@@ -329,19 +329,19 @@ load_dereddened_data = False
 print("loading spectrum...")
 sp= effsel.load_spectral_types()
 
-print("loading tgas and twomass data...")
-tgas= gaia_tools.load.tgas()
+print("loading gaia and twomass data...")
+gaia= gaia_tools.load.gaia()
 twomass= gaia_tools.load.twomass()
 #bv = twomass['b_m_opt']-twomass['vr_m_opt']
 jk = twomass['j_mag']-twomass['k_mag']
-dm = -5.*np.log10(tgas['parallax'])+10.
+dm = -5.*np.log10(gaia['parallax'])+10.
 mj = twomass['j_mag']-dm
 print("executing preliminary cuts...")
-tsf= gaia_tools.select.tgasSelect( max_plxerr=max_plx_error )
+tsf= gaia_tools.select.gaiaSelect( max_plxerr=max_plx_error )
 tsf._jmin= tsf_jmin
-init_cuts = cut_general(tgas, mj, jk)
+init_cuts = cut_general(gaia, mj, jk)
 
-tgas = cut_flow(tgas, init_cuts)
+gaia = cut_flow(gaia, init_cuts)
 twomass = cut_flow(twomass, init_cuts)
 jk= cut_flow(jk, init_cuts)
 dm= cut_flow(dm, init_cuts)
@@ -349,13 +349,13 @@ mj= cut_flow(mj, init_cuts)
 #bv= cut_flow(bv, init_cuts)
 #-------------------------------------------------initialization---------------------------------------------------------------
 #-------------------------------------------------volumn cut---------------------------------------------------------------
-vol_cut_indx = cut_indx_vol(tgas, r_cyl_cut, z_cyl_cut)
+vol_cut_indx = cut_indx_vol(gaia, r_cyl_cut, z_cyl_cut)
 jk_cyl = cut_flow(jk, vol_cut_indx)
 mj_cyl = cut_flow(mj, vol_cut_indx)
 #bv_cyl = cut_flow(bv, vol_cut_indx)
-tgas_cyl = cut_flow(tgas, vol_cut_indx)
+gaia_cyl = cut_flow(gaia, vol_cut_indx)
 
-print("Vol-reduced count: ", len(tgas_cyl))
+print("Vol-reduced count: ", len(gaia_cyl))
 #-------------------------------------------------volumn cut---------------------------------------------------------------
 
 #-------------------------------------------------extinction---------------------------------------------------------------
@@ -371,9 +371,9 @@ if (dereddening) and (not load_dereddened_data):
    dust_combine_K = mwdust.Combined15("2MASS Ks")
    print("Preparing dereddening...")
    for i in tqdm.tqdm(range(len(jk_cyl))):
-      ldeg = (tgas_cyl['l'])[i]
-      bdeg = (tgas_cyl['b'])[i]
-      plx = (tgas_cyl['parallax'])[i]   
+      ldeg = (gaia_cyl['l'])[i]
+      bdeg = (gaia_cyl['b'])[i]
+      plx = (gaia_cyl['parallax'])[i]   
       ej = dust_combine_J(ldeg,bdeg,np.divide(1000.,plx))
       ek = dust_combine_K(ldeg,bdeg,np.divide(1000.,plx))
       ejk = ej-ek
@@ -417,7 +417,7 @@ for i, star_Cat in enumerate(star_Category):
       print("Loaded evfs file: ", file_evfs)
       zRangeList, evfs_out = load_evfs(filename=file_evfs)
    else:  
-      evfs_cuts = cut_evfs(star_Cat, sp, jk, mj, tgas)
+      evfs_cuts = cut_evfs(star_Cat, sp, jk, mj, gaia)
       mj_evfs = cut_flow(mj, evfs_cuts)
       jk_evfs = cut_flow(jk, evfs_cuts)
       zRangeList , evfs_out = generate_evfs(mj_evfs, jk_evfs, star_Cat, zspace = zspace_evfs, filename=file_evfs, save=True)
@@ -430,10 +430,10 @@ for i, star_Cat in enumerate(star_Category):
    #-------------------------------------------------star density---------------------------------------------------------------
 
    if (load_dereddened_data == True) or (dereddening == True):
-      stars_cut = cut_stars(star_Cat, sp, jk_corr, mj_corr, tgas_cyl)
+      stars_cut = cut_stars(star_Cat, sp, jk_corr, mj_corr, gaia_cyl)
    else:
-      stars_cut = cut_stars(star_Cat, sp, jk_cyl, mj_cyl, tgas_cyl)
-   stars_categorized = cut_flow(tgas_cyl, stars_cut)
+      stars_cut = cut_stars(star_Cat, sp, jk_cyl, mj_cyl, gaia_cyl)
+   stars_categorized = cut_flow(gaia_cyl, stars_cut)
    #bv_categorized = cut_flow(bv_cyl, stars_cut)   
    jk_categorized = cut_flow(jk_cyl, stars_cut)
    mj_categorized = cut_flow(mj_cyl, stars_cut)
