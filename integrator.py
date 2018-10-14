@@ -17,12 +17,15 @@ gnewt = 4.516e-30
 vConversion = 3.0857e13
 totalNumComp = 14
 indexDHalo = 12
+indexDDisk = 13
 rhoDefault = 0.020
 
 #----------------------------------------------------------------------------------------
 
 def parameterMatter(hDD, SigDD, use_default_density = True, sigma_in = None, rho_in = None):
 
+   rhoDDisk = SigDD/(4.*hDD)
+   sigmaDDisk = hDD*vConversion*np.sqrt(8*np.pi*gnewt*rhoDDisk)
 
    if use_default_density:
       rhoDHalo = rhoDefault; sigmaDHalo = float('nan');
@@ -67,9 +70,6 @@ def parameterMatter(hDD, SigDD, use_default_density = True, sigma_in = None, rho
    if SigDD == 0.:
       return (sigma_in, rho_in)
 
-   rhoDDisk = SigDD/(4.*hDD)
-   sigmaDDisk = hDD*vConversion*np.sqrt(8*np.pi*gnewt*rhoDDisk)
-
    sigma = np.append(sigma_in, sigmaDDisk)
    rho = np.append(rho_in, rhoDDisk )
        
@@ -112,7 +112,27 @@ def functs(y, x, rho0, sigma):
 
 #----------------------------------------------------------------------------------------
 
-def PoissonJeansIntegrator(hDD, SigDD, xspace, rhoDH=None, use_default_density=True, sigma = None, rho = None):
+def functs_alt(y, x, rho0, sigma):
+   # phi'= phip
+   # phip' = Sum[Rho[i] Exp[-phi[x]/(Sqrt[2] Sigma[[i]])^2], {k, 1, nComp}]
+
+   phi, phip = y
+   source = np.array([])
+   for i in range(0, len(rho0), 1):
+      if i == indexDDisk:
+         h = sigma[i]/(vConversion*np.sqrt(8*np.pi*gnewt*rho0[i]))
+         darkdisk = rho0[i]*(np.cosh(0.5*x/h))**(-2)
+         source = np.append(source, darkdisk)
+      else:
+         source = np.append(source, densBachall(phi, i, rho0, sigma) )
+         
+   dy = [phip, np.sum(source)]
+
+   return dy
+
+#----------------------------------------------------------------------------------------
+
+def PoissonJeansIntegrator(hDD, SigDD, xspace, rhoDH=None, use_default_density=True, sigma = None, rho = None, use_rect_grid_method = True):
 
    sigma_vec, rho_vec = parameterMatter(hDD, SigDD, use_default_density=use_default_density, sigma_in = sigma, rho_in = rho)
 
@@ -120,7 +140,10 @@ def PoissonJeansIntegrator(hDD, SigDD, xspace, rhoDH=None, use_default_density=T
    
    initCond = [initialPhi , initialPhiPrime]
 
-   sol = intt.odeint(functs, initCond, xspace, args=(rho_vec, sigma_vec))
+   if not use_rect_grid_method:
+      sol = intt.odeint(functs, initCond, xspace, args=(rho_vec, sigma_vec))
+   if use_rect_grid_method:
+      sol = intt.odeint(functs_alt, initCond, xspace, args=(rho_vec, sigma_vec))
 
    return sol
 
