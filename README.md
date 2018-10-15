@@ -1,5 +1,5 @@
 # darkdisk
-Project: DDDM-project
+Project: Using Gaia DR2 to Constrain Local Dark Matter Density and Thin Dark Disk
 
 Author: John Leung
 
