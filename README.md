@@ -12,7 +12,7 @@ Select gaia astrometric data (stellar kinematics). Perform cuts to select stars 
 The python notebooks serve as a narration of high the data is generated from the raw Gaia data. Readers can follow the reading sequence of *gaia_cut* → *exclusion_plot* → *emcee_gaia*. The computationally simplifed version of the main result is featured in emcee_gaia.ipynb.
 
 Result for the likelihood-frequentist exclusion contour.
-![95% exclusion contour in the dark disk parameter plane.](Plots/exclusion_plot.png?raw=true "Title")
+![95% exclusion contour in the dark disk parameter plane.](Plots/exclusion_contour.png?raw=true "Title")
 
 Result for the MCMC posterior probabilities.
 ![Posteriors for Dark matter and baryons with MCMC.](Plots/emcee.png?raw=true "Title")
