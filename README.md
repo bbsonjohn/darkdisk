@@ -9,6 +9,7 @@ Date: 2017-2018
 
 Select gaia astrometric data (stellar kinematics). Perform cuts to select stars of interest as tracers. Extract information concerning Milky Way gravitational potential by solving Poison-Jeans equation using the tracer stars. This program partly contributes to the paper "*Using Gaia DR2 to Constrain Local Dark Matter Density and Thin Dark Disk*", <a href="https://arxiv.org/abs/1808.05603">1808.05603</a> by Jatan Buch, John Shing Chau Leung, JiJi Fan.
 
+![Alt text](Plots/emcee.png?raw=true "Title")
 
 ## Acknowledgement:
 
