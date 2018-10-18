@@ -9,7 +9,7 @@ Date: 2017-2018
 
 Select gaia astrometric data (stellar kinematics). Perform cuts to select stars of interest as tracers. Extract information concerning Milky Way gravitational potential by solving Poison-Jeans equation using the tracer stars. This program partly contributes to the paper "*Using Gaia DR2 to Constrain Local Dark Matter Density and Thin Dark Disk*", <a href="https://arxiv.org/abs/1808.05603">1808.05603</a> by Jatan Buch, John Shing Chau Leung, JiJi Fan.
 
-The python notebooks serve as a narration of high the data is generated from the raw Gaia data. Readers can follow the reading sequence of *gaia_cut* → *exclusion_plot* → *emcee_gaia*. The computationally simplifed version of the main result is featured in emcee_gaia.ipynb.
+The python notebooks serve as a narration of high the data is generated from the raw Gaia data. Readers can follow the reading sequence of *gaia_cut* → *exclusion_plot* → *emcee_gaia*. The computationally simplifed version of the key results are featured in emcee_gaia.ipynb.
 
 Result for the likelihood-frequentist exclusion contour. <br>
 <img src="Plots/exclusion_contour.png" width="60%">
