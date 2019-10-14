@@ -3,7 +3,7 @@ Project: <a href="https://arxiv.org/abs/1808.05603">Using Gaia DR2 to Constrain 
 
 Author: <a href="http://inspirehep.net/author/profile/Shing.Chau.Leung.1">John Leung</a>
 
-Date: 2017-2018
+Date: 2018
 
 ## Feature:
 
