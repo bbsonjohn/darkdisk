@@ -1,0 +1,17 @@
+-- Gaia DR1 TAP query by John Leung
+SELECT ALL source_id, ra, dec, l, b, ecl_lat, parallax, pmra, pmdec,
+	phot_g_mean_mag, ref_epoch, parallax_error, ra_error, dec_error, 			pmra_error, pmdec_error, astrometric_n_good_obs_al, dec_parallax_corr, 			dec_pmdec_corr, dec_pmra_corr, parallax_pmdec_corr, parallax_pmra_corr,
+        pmra_pmdec_corr, ra_dec_corr, ra_parallax_corr, ra_pmdec_corr,
+        ra_pmra_corr, scan_direction_mean_k4, scan_direction_strength_k4
+	FROM gaiadr1.gaia_source
+	WHERE parallax > 1
+	AND parallax_error < 0.5;
+
+-- possible cut variables:
+-- parallax
+-- parallax_error
+-- ecl_lat
+-- phot_g_mean_mag
+-- astrometric_n_good_obs_al
+-- scan_direction_strength_k4
+

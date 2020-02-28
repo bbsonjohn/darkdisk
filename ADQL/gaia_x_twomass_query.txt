@@ -1,0 +1,41 @@
+-- Gaia x 2mass TAP query by John Leung
+-- https://gea.esac.esa.int/archive/
+SELECT ALL source_id, g.ra, g.dec, l, b, parallax, pmra, pmdec, phot_g_mean_mag, teff_val, parallax_error, pmra_error, pmdec_error, astrometric_n_good_obs_al, dec_parallax_corr, dec_pmdec_corr, dec_pmra_corr, parallax_pmdec_corr, parallax_pmra_corr, pmra_pmdec_corr, ra_dec_corr, ra_parallax_corr, ra_pmdec_corr, ra_pmra_corr, twomass.tmass_oid, twomass.ra AS tra, twomass.dec AS tdec, twomass.h_m AS h_mag, twomass.j_m AS j_mag, twomass.ks_m AS k_mag
+	FROM gaiadr2.gaia_source AS g
+	JOIN gaiadr2.tmass_best_neighbour AS neighbour USING (source_id)
+    JOIN gaiadr1.tmass_original_valid AS twomass USING (tmass_oid)
+    WHERE parallax > 2.0
+    AND astrometric_n_good_obs_al > 8.0
+	AND twomass.j_m < 13.5
+    AND l >= l_min
+    AND l < l_max
+	AND parallax_error < 0.5;
+
+-- Gaia x 2mass TAP query modification by JB
+-- https://gea.esac.esa.int/archive/
+SELECT ALL g.source_id, g.ra, g.dec, g.l, g.b, g.parallax, g.pmra, g.pmdec, 
+g.phot_g_mean_mag, g.teff_val, g.parallax_error, g.pmra_error, g.pmdec_error, g.astrometric_n_good_obs_al, g.dec_error, g.radial_velocity, g.radial_velocity_error,
+g.dec_parallax_corr, g.dec_pmdec_corr, g.dec_pmra_corr, g.parallax_pmdec_corr, g.parallax_pmra_corr, g.pmra_pmdec_corr, g.dec_parallax_corr,
+g.ra_dec_corr, g.ra_parallax_corr, g.ra_pmdec_corr, g.ra_pmra_corr, g.astrometric_chi2_al, g.bp_g, g.g_rp, g.phot_rp_mean_flux_over_error, g.parallax_over_error,
+g.phot_bp_mean_flux_over_error, g.visibility_periods_used, g.phot_bp_rp_excess_factor, g.astrometric_excess_noise, t.tmass_oid, t.ra AS tra, 
+t.dec AS tdec, t.h_m AS h_mag, t.j_m AS j_mag, t.ks_m AS k_mag 
+FROM gaiadr2.gaia_source AS g, gaiadr2.tmass_best_neighbour AS n, gaiadr1.tmass_original_valid AS t 
+WHERE g.source_id = n.source_id 
+AND n.tmass_oid= t.tmass_oid 
+AND t.j_m < 14
+AND g.l >=0
+AND g.l < 2.5;
+
+-- Gaia x 2mass TAP query modification by JB
+-- http://gaia.ari.uni-heidelberg.de/tap.html
+SELECT ALL g.source_id, g.ra, g.dec, g.l, g.b, g.parallax, g.pmra, g.pmdec, 
+g.phot_g_mean_mag, g.teff_val, g.parallax_error, g.pmra_error, g.pmdec_error, g.astrometric_n_good_obs_al, g.radial_velocity, g.radial_velocity_error,
+g.dec_parallax_corr, g.dec_pmdec_corr, g.dec_pmra_corr, g.parallax_pmdec_corr, g.parallax_pmra_corr, g.pmra_pmdec_corr,
+g.ra_dec_corr, g.ra_parallax_corr, g.ra_pmdec_corr, g.ra_pmra_corr, g.astrometric_chi2_al, g.bp_g, g.g_rp, g.phot_rp_mean_flux_over_error, g.phot_bp_mean_flux_over_error, g.visibility_periods_used, g.phot_bp_rp_excess_factor, g.astrometric_excess_noise, t.pts_key, t.raj2000 AS tra, t.dej2000 AS tdec, t.hmag AS h_mag, t.jmag AS j_mag, t.kmag AS k_mag 
+FROM gaiadr2.gaia_source AS g, gaiadr2.tmass_best_neighbour AS n, twomass AS t 
+WHERE g.source_id = n.source_id 
+AND n.tmass_oid= t.pts_key 
+AND astrometric_n_good_obs_al > 8.0
+AND t.jmag <= 13.5
+AND l >=0
+AND l <5;
