@@ -1,7 +1,9 @@
 # darkdisk
-Project: <a href="https://arxiv.org/abs/1808.05603">Using Gaia DR2 to Constrain Local Dark Matter Density and Thin Dark Disk</a>
+Project: <a href="https://iopscience.iop.org/article/10.1088/1475-7516/2019/04/026">Using Gaia DR2 to Constrain Local Dark Matter Density and Thin Dark Disk</a>
 
 Author: <a href="http://inspirehep.net/author/profile/Shing.Chau.Leung.1">John Leung</a>
+
+ArXiv: <a href="https://arxiv.org/abs/1808.05603">1808.05603</a>
 
 Date: 2018
 
